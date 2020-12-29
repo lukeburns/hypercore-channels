@@ -1,4 +1,5 @@
 const sodium = require('sodium-native')
+const { sign, verify, keyPair } = require('hypercore-crypto')
 
 const one = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
 one.fill(0)
@@ -106,54 +107,6 @@ module.exports = {
   writable,
   readable,
   crypto
-}
-
-function keyPair () {
-  const sk = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-  const pk = Buffer.alloc(sodium.crypto_core_ristretto255_BYTES)
-  sodium.crypto_core_ristretto255_scalar_random(sk)
-  sodium.crypto_scalarmult_ristretto255_base(pk, sk)
-  return {
-    publicKey: pk,
-    secretKey: sk
-  }
-}
-
-function sign (m, sk) {
-  if (typeof m === 'string') m = Buffer.from(m)
-  if (typeof sk === 'string') sk = Buffer.from(sk, 'hex')
-  const k = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-  const eBytes = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-  const e = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-  const xe = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-  const s = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-  const r = Buffer.alloc(sodium.crypto_core_ristretto255_BYTES)
-  sodium.crypto_core_ristretto255_scalar_random(k) // k
-  sodium.crypto_scalarmult_ristretto255_base(r, k) // r = k*g
-  sodium.crypto_generichash(eBytes, Buffer.concat([r, m])) // e = hash(r|m)
-  bytesToScalar(e, eBytes)
-  sodium.crypto_core_ristretto255_scalar_mul(xe, sk, e) // xe = e*sk
-  sodium.crypto_core_ristretto255_scalar_sub(s, k, xe) // s = k - esk
-  return Buffer.concat([s, e]) // sig = (s,e)
-}
-
-function verify (m, sig, pk) {
-  if (typeof m === 'string') m = Buffer.from(m)
-  if (typeof sig === 'string') sig = Buffer.from(sig, 'hex')
-  if (typeof pk === 'string') pk = Buffer.from(pk, 'hex')
-  const s = sig.slice(0, sodium.crypto_core_ristretto255_SCALARBYTES)
-  const e = sig.slice(sodium.crypto_core_ristretto255_SCALARBYTES, 2 * sodium.crypto_core_ristretto255_SCALARBYTES)
-  const evBytes = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-  const ev = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-  const sg = Buffer.alloc(sodium.crypto_core_ristretto255_BYTES)
-  const epk = Buffer.alloc(sodium.crypto_core_ristretto255_BYTES)
-  const rv = Buffer.alloc(sodium.crypto_core_ristretto255_BYTES)
-  sodium.crypto_scalarmult_ristretto255_base(sg, s) // sg = s*g
-  sodium.crypto_scalarmult_ristretto255(epk, e, pk) // epk = e*pk
-  sodium.crypto_core_ristretto255_add(rv, sg, epk) // rv = sg + epk = (k - e sk)g + epk = k g - e pk + e pk = k g
-  sodium.crypto_generichash(evBytes, Buffer.concat([rv, m])) // e = hash(r|m)c
-  bytesToScalar(ev, evBytes)
-  return ev.equals(e)
 }
 
 function bytesToScalar (buf, bytes) {

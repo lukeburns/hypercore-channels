@@ -1,17 +1,24 @@
-const { crypto, writable, readable } = require('./')
+const { crypto, writable, readable } = require('.')
 const ram = require('random-access-memory')
 const hypercore = require('hypercore')
 
-// private channel
 const alice = crypto.keyPair()
 const bob = crypto.keyPair()
 console.log(`Alice: ${alice.secretKey.toString('hex')}`)
 console.log(`Bob: ${bob.secretKey.toString('hex')}`)
 
+// public channel
+const alicesCats = hypercore(ram, readable('cats', alice.publicKey))
+const myCats = hypercore(ram, writable('cats', alice.secretKey))
+console.log(alicesCats.key)
+console.log(myCats.key)
+
+// private channel
+
 const lettersFromBob = hypercore(ram, readable('love letters', bob.publicKey, alice.secretKey))
 const lettersToAlice = hypercore(ram, writable('love letters', bob.secretKey, alice.publicKey))
 console.log(`\nAlice's inbox: ${lettersFromBob.key.toString('hex')}`)
-console.log(`Bob's key to inbox: ${lettersToAlice.secretKey.toString('hex')}\n`)
+console.log(`Bob's secret key to inbox: ${lettersToAlice.secretKey.toString('hex')}\n`)
 
 const as = lettersFromBob.replicate(false)
 const bs = lettersToAlice.replicate(true)

@@ -9,10 +9,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "sodium-native": "github:lukeburns/sodium-native#ristretto"
+    "hypercore-crypto": "lukeburns/hypercore-crypto#ristretto",
+    "sodium-native": "lukeburns/sodium-native#ristretto"
   },
   "devDependencies": {
-    "hypercore": "github:lukeburns/hypercore",
+    "hypercore": "lukeburns/hypercore#ristretto",
     "random-access-memory": "^3.1.1"
   }
 }
