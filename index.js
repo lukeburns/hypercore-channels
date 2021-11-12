@@ -1,11 +1,13 @@
 const sodium = require('sodium-native')
-const { sign, verify, keyPair } = require('hypercore-crypto')
+const { sign, verify, keyPair, validateKeyPair, discoveryKey } = require('hypercore-crypto')
 
 const one = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
 one.fill(0)
 one[0] = 1
 
-function writable (bytes, secretKey, publicKey) {
+function writable (bytes = '', secretKey, publicKey) {
+  if (!secretKey) throw new Error('writable channel requires a secret key')
+
   if (typeof bytes === 'string') bytes = Buffer.from(bytes)
   if (typeof secretKey === 'string') secretKey = Buffer.from(secretKey, 'hex')
   if (typeof publicKey === 'string') publicKey = Buffer.from(publicKey, 'hex')
@@ -51,7 +53,9 @@ function writable (bytes, secretKey, publicKey) {
   }
 }
 
-function readable (bytes, publicKey, secretKey) {
+function readable (bytes = '', publicKey, secretKey) {
+  if (!publicKey) throw new Error('readable channel requires a public key')
+
   if (typeof bytes === 'string') bytes = Buffer.from(bytes)
   if (typeof secretKey === 'string') secretKey = Buffer.from(secretKey, 'hex')
   if (typeof publicKey === 'string') publicKey = Buffer.from(publicKey, 'hex')
@@ -100,6 +104,8 @@ const crypto = {
   verify (data, sig, pk, cb) {
     return cb ? cb(null, verify(data, sig, pk)) : verify(data, sig, pk)
   },
+  validateKeyPair,
+  discoveryKey,
   keyPair
 }
 
