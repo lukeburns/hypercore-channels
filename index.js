@@ -1,4 +1,4 @@
-const sodium = require('sodium-native')
+const sodium = require('sodium-universal')
 const { sign, verify, keyPair, validateKeyPair, discoveryKey } = require('hypercore-crypto')
 
 const one = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
