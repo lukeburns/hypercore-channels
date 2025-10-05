@@ -1,19 +1,20 @@
 {
   "name": "hypercore-channels",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "",
+  "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "brittle test.js"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "hypercore-crypto": "lukeburns/hypercore-crypto#ristretto",
-    "sodium-universal": "lukeburns/sodium-universal#ristretto"
+    "@noble/curves": "^2.0.1",
+    "@noble/hashes": "^2.0.1",
+    "hypercore-crypto": "npm:@lukeburns/hypercore-crypto"
   },
   "devDependencies": {
-    "hypercore": "../hypercore-next",
-    "random-access-memory": "^3.1.1"
+    "brittle": "^3.19.0"
   }
 }

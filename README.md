@@ -1,41 +1,48 @@
 # hypercore-channels
 
+Ristretto255-based secure communication channels for Hypercore applications.
+
+## Features
+
+- **Private Channels**: ECDH-based secure communication between parties
+- **Public Namespaces**: Public-key-only namespacing for broadcasting
+- **Hierarchical Organization**: Nested namespace structures
+- **Cryptographic Verification**: Schnorr signatures with ristretto255
+
+## Quick Example
+
 ```js
-const { crypto, readable, writable } = require('hypercore-channels')
-const hypercore = require('hypercore')
+import { writable, readable } from './index.js'
+import crypto from 'hypercore-crypto'
 
-const alice = hypercore('./alice', { crypto })
-const bob = hypercore('./bob', { crypto })
+// Generate key pairs
+const alice = crypto.keyPair()
+const bob = crypto.keyPair()
 
-// Bob can write secret love letters to Alice on the hypercore:
-const lettersToAlice = hypercore('./to_alice', writable('love letters', bob.secretKey, alice.key))
+// Private channel: Bob can write to Alice
+const lettersToAlice = writable('love letters', bob.secretKey, alice.publicKey)
+const lettersFromBob = readable('love letters', bob.publicKey, alice.secretKey)
 
-// Alice can read secret love letters from Bob on the hypercore:
-const lettersFromBob = hypercore('./from_bob', readable('love letters', bob.key, alice.secretKey))
+// Public namespace: Anyone can derive Alice's blog
+const aliceBlog = writable('alice-blog', alice.secretKey)
+const publicBlog = readable('alice-blog', alice.publicKey)
+
+console.log('Private channel keys match:', lettersToAlice.key.equals(lettersFromBob.key))
+console.log('Public namespace keys match:', aliceBlog.key.equals(publicBlog.key))
 ```
 
-See `example.js` for complete working example.
+## API
 
-#### `const { key, crypto } = readable(bytes, publicKey, [secretKey])`
+### `writable(context, secretKey, [publicKey])`
 
-Derive a new public key from bytes, a public key, and optionally a secret key. If passed a secret key, will perform Diffie-Hellmann and concatenate common secret to bytes.
+Creates a writable channel. If `publicKey` is provided, performs ECDH for private communication.
 
-#### `const { secretKey, crypto } = writable(bytes, secretKey, [publicKey])`
+### `readable(context, publicKey, [secretKey])`
 
-Derive a new secret key from bytes, a secret key, and optionally a foreign public key. If passed a public key, will perform Diffie-Hellmann and concatenate common secret to bytes.
+Creates a readable channel. If `secretKey` is provided, performs ECDH for private communication.
 
-#### `crypto`
+### Modes
 
-`crypto` is an object that should be passed to hypercore options.
-
-```
-{
-    keyPair(),
-    sign(message, secretKey),
-    verify(message, signature, publicKey),
-    publicKeySize,
-    secretKeySize,
-    signatureSize,
-    signatureType
-}
-```
+- **Private Channel**: `writable(context, secretKey, publicKey)` + `readable(context, publicKey, secretKey)`
+- **Public Namespace**: `writable(context, secretKey)` + `readable(context, publicKey)`
+- **Personal Namespace**: `writable(context, secretKey)` only

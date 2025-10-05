@@ -1,9 +1,10 @@
-const sodium = require('sodium-universal')
-const { sign, verify, keyPair, validateKeyPair, discoveryKey } = require('hypercore-crypto')
+import { ristretto255, ristretto255_hasher } from '@noble/curves/ed25519.js'
+import { sha256 } from '@noble/hashes/sha2.js'
+import { randomBytes as nobleRandomBytes } from '@noble/hashes/utils.js'
 
-const one = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-one.fill(0)
-one[0] = 1
+// Ristretto255 constants
+const SCALAR_BYTES = 32
+const POINT_BYTES = 32
 
 function writable (bytes = '', secretKey, publicKey) {
   if (!secretKey) throw new Error('writable channel requires a secret key')
@@ -13,40 +14,54 @@ function writable (bytes = '', secretKey, publicKey) {
   if (typeof publicKey === 'string') publicKey = Buffer.from(publicKey, 'hex')
 
   if (secretKey && publicKey) {
-    const sharedPoint = Buffer.alloc(sodium.crypto_core_ristretto255_BYTES)
-    const sharedBytes = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-    const sharedScalar = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-    sodium.crypto_scalarmult_ristretto255(sharedPoint, secretKey, publicKey)
-    sodium.crypto_generichash(sharedBytes, bytes, sharedPoint)
-    bytesToScalar(sharedScalar, sharedBytes)
-
-    const newSecretKey = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-    sodium.crypto_core_ristretto255_scalar_mul(newSecretKey, sharedScalar, secretKey)
-
-    const newPublicKey = Buffer.alloc(sodium.crypto_core_ristretto255_BYTES)
-    sodium.crypto_scalarmult_ristretto255_base(newPublicKey, newSecretKey)
+    // Extract private key from 64-byte secret key (first 32 bytes)
+    const privateKey = secretKey.subarray(0, 32)
+    
+    // Perform ECDH to get shared secret
+    const secretKeyScalar = ristretto255.Point.Fn.fromBytes(privateKey)
+    const publicKeyPoint = ristretto255.Point.fromBytes(publicKey)
+    const sharedPoint = publicKeyPoint.multiply(secretKeyScalar)
+    const sharedPointBytes = Buffer.from(sharedPoint.toBytes())
+    
+    // Hash bytes + shared point to get scalar
+    const hash = sha256.create()
+    hash.update(bytes)
+    hash.update(sharedPointBytes)
+    const sharedScalar = ristretto255_hasher.hashToScalar(hash.digest())
+    
+    // Derive new secret key: sharedScalar * secretKey
+    const newSecretKeyScalar = ristretto255.Point.Fn.mul(sharedScalar, secretKeyScalar)
+    const newSecretKey = Buffer.from(ristretto255.Point.Fn.toBytes(newSecretKeyScalar))
+    
+    // Derive new public key: newSecretKey * G
+    const newPublicKeyPoint = ristretto255.Point.BASE.multiply(newSecretKeyScalar)
+    const newPublicKey = Buffer.from(newPublicKeyPoint.toBytes())
 
     return {
       secretKey: newSecretKey,
-      key: newPublicKey,
-      crypto
+      key: newPublicKey
     }
   } else if (!publicKey) {
-    const scalarBytes = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-    const scalar = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-    sodium.crypto_generichash(scalarBytes, bytes)
-    bytesToScalar(scalar, scalarBytes)
-
-    const newSecretKey = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-    sodium.crypto_core_ristretto255_scalar_mul(newSecretKey, scalar, secretKey)
-
-    const newPublicKey = Buffer.alloc(sodium.crypto_core_ristretto255_BYTES)
-    sodium.crypto_scalarmult_ristretto255_base(newPublicKey, newSecretKey) // (sh * sk) * g
+    // Extract private key from 64-byte secret key (first 32 bytes)
+    const privateKey = secretKey.subarray(0, 32)
+    
+    // Hash bytes to get scalar
+    const hash = sha256.create()
+    hash.update(bytes)
+    const scalar = ristretto255_hasher.hashToScalar(hash.digest())
+    
+    // Derive new secret key: scalar * secretKey
+    const secretKeyScalar = ristretto255.Point.Fn.fromBytes(privateKey)
+    const newSecretKeyScalar = ristretto255.Point.Fn.mul(scalar, secretKeyScalar)
+    const newSecretKey = Buffer.from(ristretto255.Point.Fn.toBytes(newSecretKeyScalar))
+    
+    // Derive new public key: newSecretKey * G
+    const newPublicKeyPoint = ristretto255.Point.BASE.multiply(newSecretKeyScalar)
+    const newPublicKey = Buffer.from(newPublicKeyPoint.toBytes())
 
     return {
       secretKey: newSecretKey,
-      key: newPublicKey,
-      crypto
+      key: newPublicKey
     }
   } else {
     return bytes
@@ -61,60 +76,49 @@ function readable (bytes = '', publicKey, secretKey) {
   if (typeof publicKey === 'string') publicKey = Buffer.from(publicKey, 'hex')
 
   if (secretKey && publicKey) {
-    const sharedPoint = Buffer.alloc(sodium.crypto_core_ristretto255_BYTES)
-    const sharedBytes = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-    const sharedScalar = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-    sodium.crypto_scalarmult_ristretto255(sharedPoint, secretKey, publicKey)
-    sodium.crypto_generichash(sharedBytes, bytes, sharedPoint)
-    bytesToScalar(sharedScalar, sharedBytes)
-
-    const newPublicKey = Buffer.alloc(sodium.crypto_core_ristretto255_BYTES)
-    sodium.crypto_scalarmult_ristretto255(newPublicKey, sharedScalar, publicKey)
+    // Extract private key from 64-byte secret key (first 32 bytes)
+    const privateKey = secretKey.subarray(0, 32)
+    
+    // Perform ECDH to get shared secret
+    const secretKeyScalar = ristretto255.Point.Fn.fromBytes(privateKey)
+    const publicKeyPoint = ristretto255.Point.fromBytes(publicKey)
+    const sharedPoint = publicKeyPoint.multiply(secretKeyScalar)
+    const sharedPointBytes = Buffer.from(sharedPoint.toBytes())
+    
+    // Hash bytes + shared point to get scalar
+    const hash = sha256.create()
+    hash.update(bytes)
+    hash.update(sharedPointBytes)
+    const sharedScalar = ristretto255_hasher.hashToScalar(hash.digest())
+    
+    // Derive new public key: sharedScalar * publicKey
+    const newPublicKeyPoint = publicKeyPoint.multiply(sharedScalar)
+    const newPublicKey = Buffer.from(newPublicKeyPoint.toBytes())
 
     return {
-      key: newPublicKey,
-      crypto
+      key: newPublicKey
     }
   } else if (!secretKey) {
-    const hashedBytes = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-    const scalar = Buffer.alloc(sodium.crypto_core_ristretto255_SCALARBYTES)
-    sodium.crypto_generichash(hashedBytes, bytes)
-    bytesToScalar(scalar, hashedBytes)
-
-    const newPublicKey = Buffer.alloc(sodium.crypto_core_ristretto255_BYTES)
-    sodium.crypto_scalarmult_ristretto255(newPublicKey, scalar, publicKey) // sh * (sk * g)
+    // Hash bytes to get scalar
+    const hash = sha256.create()
+    hash.update(bytes)
+    const scalar = ristretto255_hasher.hashToScalar(hash.digest())
+    
+    // Derive new public key: scalar * publicKey
+    const publicKeyPoint = ristretto255.Point.fromBytes(publicKey)
+    const newPublicKeyPoint = publicKeyPoint.multiply(scalar)
+    const newPublicKey = Buffer.from(newPublicKeyPoint.toBytes())
 
     return {
-      key: newPublicKey,
-      crypto
+      key: newPublicKey
     }
   } else {
     return bytes
   }
 }
 
-const crypto = {
-  publicKeySize: sodium.crypto_core_ristretto255_BYTES,
-  secretKeySize: sodium.crypto_core_ristretto255_SCALARBYTES,
-  signatureSize: 2 * sodium.crypto_core_ristretto255_SCALARBYTES,
-  signatureType: 'ristretto255',
-  sign (data, sk, cb) {
-    return cb ? cb(null, sign(data, sk)) : sign(data, sk)
-  },
-  verify (data, sig, pk, cb) {
-    return cb ? cb(null, verify(data, sig, pk)) : verify(data, sig, pk)
-  },
-  validateKeyPair,
-  discoveryKey,
-  keyPair
-}
 
-module.exports = {
+export {
   writable,
-  readable,
-  crypto
-}
-
-function bytesToScalar (buf, bytes) {
-  sodium.crypto_core_ristretto255_scalar_mul(buf, one, bytes)
+  readable
 }
